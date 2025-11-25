@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22225" systemVersion="13.2" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="NO" userDefinedModelVersionIdentifier="">
+    <entity name="AccountEntity" representedClassName="AccountEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="balance" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="currency" attributeType="String" defaultValueString="KZT"/>
+        <attribute name="id" attributeType="String" required="YES"/>
+        <attribute name="name" attributeType="String" required="YES"/>
+        <attribute name="type" attributeType="String" defaultValueString="card"/>
+        <uniqueConstraint>
+            <constraint value="id"/>
+        </uniqueConstraint>
+    </entity>
+    <entity name="BudgetEntity" representedClassName="BudgetEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="categoryId" attributeType="String" required="YES"/>
+        <attribute name="currency" attributeType="String" defaultValueString="KZT"/>
+        <attribute name="id" attributeType="String" required="YES"/>
+        <attribute name="limit" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="period" attributeType="String" defaultValueString="month"/>
+        <attribute name="spent" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="startDate" attributeType="Date" usesScalarValueType="NO"/>
+        <uniqueConstraint>
+            <constraint value="id"/>
+        </uniqueConstraint>
+    </entity>
+    <entity name="CategoryEntity" representedClassName="CategoryEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="color" attributeType="String" defaultValueString="CCCCCC"/>
+        <attribute name="icon" attributeType="String" defaultValueString="📌"/>
+        <attribute name="id" attributeType="String" required="YES"/>
+        <attribute name="isCustom" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="name" attributeType="String" required="YES"/>
+        <attribute name="type" attributeType="String" defaultValueString="expense"/>
+        <uniqueConstraint>
+            <constraint value="id"/>
+        </uniqueConstraint>
+    </entity>
+    <entity name="GoalEntity" representedClassName="GoalEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="accountId" attributeType="String" required="YES"/>
+        <attribute name="currentAmount" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="currency" attributeType="String" defaultValueString="KZT"/>
+        <attribute name="deadline" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" attributeType="String" required="YES"/>
+        <attribute name="name" attributeType="String" required="YES"/>
+        <attribute name="targetAmount" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <uniqueConstraint>
+            <constraint value="id"/>
+        </uniqueConstraint>
+    </entity>
+    <entity name="OperationEntity" representedClassName="OperationEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="accountId" attributeType="String" required="YES"/>
+        <attribute name="amount" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="categoryId" attributeType="String" required="YES"/>
+        <attribute name="currency" attributeType="String" defaultValueString="KZT"/>
+        <attribute name="date" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="operationDescription" attributeType="String" defaultValueString=""/>
+        <attribute name="id" attributeType="String" required="YES"/>
+        <attribute name="type" attributeType="String" defaultValueString="expense"/>
+        <uniqueConstraint>
+            <constraint value="id"/>
+        </uniqueConstraint>
+    </entity>
+</model>

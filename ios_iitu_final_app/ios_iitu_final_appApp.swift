@@ -9,9 +9,19 @@ import SwiftUI
 
 @main
 struct ios_iitu_final_appApp: App {
+    @StateObject private var coreDataService = CoreDataService.shared
+    @StateObject private var authManager = AuthenticationManager.shared
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if authManager.isAuthenticated {
+                MainTabView()
+                    .environmentObject(coreDataService)
+                    .environmentObject(authManager)
+            } else {
+                AuthenticationView()
+                    .environmentObject(authManager)
+            }
         }
     }
 }
