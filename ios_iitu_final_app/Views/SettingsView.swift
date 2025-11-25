@@ -246,6 +246,9 @@ struct AddAccountView: View {
 
 struct CategoriesManagementView: View {
     @EnvironmentObject var coreDataService: CoreDataService
+    @State private var showAddCategory = false
+    @State private var categoryToDelete: Category?
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         List {
@@ -256,14 +259,28 @@ struct CategoriesManagementView: View {
                             Text(category.icon)
                                 .font(.title3)
 
-                            Text(category.name)
-                                .fontWeight(category.isCustom ? .semibold : .regular)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(category.name)
+                                    .fontWeight(category.isCustom ? .semibold : .regular)
+
+                                if category.isCustom {
+                                    Text("Custom")
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+
+                            Spacer()
 
                             if category.isCustom {
-                                Spacer()
-                                Text("Custom")
-                                    .font(.caption2)
-                                    .foregroundColor(.blue)
+                                Button(action: {
+                                    categoryToDelete = category
+                                    showDeleteConfirmation = true
+                                }) {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                        .font(.caption)
+                                }
                             }
                         }
                     }
@@ -273,6 +290,146 @@ struct CategoriesManagementView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Категории")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showAddCategory = true }) {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showAddCategory) {
+            AddCategoryView(isPresented: $showAddCategory)
+                .environmentObject(coreDataService)
+        }
+        .alert("Удалить категорию", isPresented: $showDeleteConfirmation) {
+            Button("Удалить", role: .destructive) {
+                if let category = categoryToDelete {
+                    coreDataService.deleteCategory(category.id)
+                    categoryToDelete = nil
+                }
+            }
+            Button("Отмена", role: .cancel) {
+                categoryToDelete = nil
+            }
+        } message: {
+            Text("Это удалит категорию и все связанные транзакции. Это действие невозможно отменить.")
+        }
+    }
+}
+
+struct AddCategoryView: View {
+    @EnvironmentObject var coreDataService: CoreDataService
+    @Binding var isPresented: Bool
+
+    @State private var categoryName: String = ""
+    @State private var categoryIcon: String = "📌"
+    @State private var categoryType: OperationType = .expense
+    @State private var selectedColor: String = "FF6B6B"
+    @State private var showError = false
+    @State private var errorMessage = ""
+
+    let colors = [
+        ("FF6B6B", "Красный"),
+        ("4ECDC4", "Бирюзовый"),
+        ("95E1D3", "Мятный"),
+        ("FFB6B9", "Розовый"),
+        ("C7CEEA", "Сиреневый"),
+        ("B5EAD7", "Светло-зелёный"),
+        ("FFDAC1", "Персиковый"),
+        ("E0BBE4", "Лаванда"),
+        ("D4F1F4", "Голубой"),
+        ("CCCCCC", "Серый"),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Название")) {
+                    TextField("Название категории", text: $categoryName)
+                }
+
+                Section(header: Text("Тип")) {
+                    Picker("Тип", selection: $categoryType) {
+                        ForEach([OperationType.expense, OperationType.income], id: \.self) { type in
+                            Text(type.displayName).tag(type)
+                        }
+                    }
+                }
+
+                Section(header: Text("Иконка")) {
+                    TextField("Выберите иконку (emoji)", text: $categoryIcon)
+                        .font(.title2)
+                }
+
+                Section(header: Text("Цвет")) {
+                    Picker("Цвет", selection: $selectedColor) {
+                        ForEach(colors, id: \.0) { color, label in
+                            HStack {
+                                Circle()
+                                    .fill(Color(hex: color) ?? .blue)
+                                    .frame(width: 20, height: 20)
+                                Text(label)
+                            }
+                            .tag(color)
+                        }
+                    }
+                }
+
+                Section {
+                    Button(action: saveCategory) {
+                        HStack {
+                            Spacer()
+                            Text("Создать")
+                                .fontWeight(.semibold)
+                            Spacer()
+                        }
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+            .navigationTitle("Новая категория")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Отмена") {
+                        isPresented = false
+                    }
+                }
+            }
+            .alert("Ошибка", isPresented: $showError) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
+            }
+        }
+    }
+
+    private func saveCategory() {
+        guard !categoryName.isEmpty else {
+            errorMessage = "Введите название категории"
+            showError = true
+            return
+        }
+
+        guard !categoryIcon.isEmpty else {
+            errorMessage = "Выберите иконку"
+            showError = true
+            return
+        }
+
+        let category = Category(
+            name: categoryName,
+            icon: categoryIcon,
+            color: selectedColor,
+            type: categoryType,
+            isCustom: true
+        )
+
+        coreDataService.addCategory(category)
+        isPresented = false
     }
 }
 

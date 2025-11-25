@@ -258,12 +258,23 @@ class CoreDataService: NSObject, ObservableObject {
     }
 
     func deleteCategory(_ categoryId: UUID) {
-        let request = NSFetchRequest<NSFetchRequestResult>(entityName: "CategoryEntity")
-        request.predicate = NSPredicate(format: "id == %@", categoryId.uuidString)
+        let categoryRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "CategoryEntity")
+        categoryRequest.predicate = NSPredicate(format: "id == %@", categoryId.uuidString)
 
         do {
-            if let result = try viewContext.fetch(request).first as? NSManagedObject {
-                viewContext.delete(result)
+            if let categoryResult = try viewContext.fetch(categoryRequest).first as? NSManagedObject {
+                // Delete all associated operations
+                let operationRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "OperationEntity")
+                operationRequest.predicate = NSPredicate(format: "categoryId == %@", categoryId.uuidString)
+
+                if let operations = try viewContext.fetch(operationRequest) as? [NSManagedObject] {
+                    for operation in operations {
+                        viewContext.delete(operation)
+                    }
+                }
+
+                // Delete the category
+                viewContext.delete(categoryResult)
                 save()
             }
         } catch {
