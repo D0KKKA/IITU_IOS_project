@@ -2,17 +2,43 @@ import SwiftUI
 
 struct BudgetsView: View {
     @EnvironmentObject var coreDataService: CoreDataService
-    @StateObject private var viewModel: BudgetViewModel
     @State private var showAddBudget = false
 
-    init() {
-        _viewModel = StateObject(wrappedValue: BudgetViewModel(coreDataService: CoreDataService.shared))
+    // Computed properties for real-time budget updates
+    var budgetsWithSpent: [Budget] {
+        coreDataService.budgets.map { budget in
+            let spent = coreDataService.operations
+                .filter { $0.categoryId == budget.categoryId && $0.type == .expense }
+                .reduce(0) { $0 + $1.amount }
+
+            return Budget(
+                id: budget.id,
+                categoryId: budget.categoryId,
+                limit: budget.limit,
+                spent: spent,
+                period: budget.period,
+                startDate: budget.startDate,
+                currency: budget.currency
+            )
+        }
+    }
+
+    var warningBudgets: [Budget] {
+        budgetsWithSpent.filter { $0.isWarning }
+    }
+
+    var normalBudgets: [Budget] {
+        budgetsWithSpent.filter { !$0.isWarning && !$0.isExceeded }
+    }
+
+    var exceededBudgets: [Budget] {
+        budgetsWithSpent.filter { $0.isExceeded }
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if viewModel.budgets.isEmpty {
+                if budgetsWithSpent.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "chart.pie")
                             .font(.system(size: 50))
@@ -37,20 +63,29 @@ struct BudgetsView: View {
                     .frame(maxHeight: .infinity)
                 } else {
                     List {
+                        // Exceeded budgets
+                        if !exceededBudgets.isEmpty {
+                            Section(header: Text("🔴 Превышено")) {
+                                ForEach(exceededBudgets) { budget in
+                                    BudgetRowView(budget: budget)
+                                }
+                            }
+                        }
+
                         // Warning budgets
-                        if !viewModel.warningBudgets.isEmpty {
+                        if !warningBudgets.isEmpty {
                             Section(header: Text("⚠️ Предупреждение")) {
-                                ForEach(viewModel.warningBudgets) { budget in
-                                    BudgetRowView(budget: budget, viewModel: viewModel)
+                                ForEach(warningBudgets) { budget in
+                                    BudgetRowView(budget: budget)
                                 }
                             }
                         }
 
                         // Normal budgets
-                        if !viewModel.normalBudgets.isEmpty {
+                        if !normalBudgets.isEmpty {
                             Section(header: Text("✅ В норме")) {
-                                ForEach(viewModel.normalBudgets) { budget in
-                                    BudgetRowView(budget: budget, viewModel: viewModel)
+                                ForEach(normalBudgets) { budget in
+                                    BudgetRowView(budget: budget)
                                 }
                             }
                         }
@@ -68,7 +103,8 @@ struct BudgetsView: View {
                 }
             }
             .sheet(isPresented: $showAddBudget) {
-                AddBudgetView(isPresented: $showAddBudget, viewModel: viewModel)
+                AddBudgetView(isPresented: $showAddBudget)
+                    .environmentObject(coreDataService)
             }
         }
     }
@@ -77,17 +113,20 @@ struct BudgetsView: View {
 struct BudgetRowView: View {
     @EnvironmentObject var coreDataService: CoreDataService
     let budget: Budget
-    let viewModel: BudgetViewModel
+
+    var categoryName: String {
+        coreDataService.categories.first { $0.id == budget.categoryId }?.name ?? "Unknown"
+    }
 
     var body: some View {
         VStack(spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.getCategoryName(budget.categoryId))
+                    Text(categoryName)
                         .font(.callout)
                         .fontWeight(.semibold)
 
-                    Text("\(budget.spent.formatted()) / \(budget.limit.formatted()) \(budget.currency)")
+                    Text("\(String(format: "%.0f", budget.spent)) / \(String(format: "%.0f", budget.limit)) \(budget.currency)")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
@@ -126,7 +165,6 @@ struct BudgetRowView: View {
 struct AddBudgetView: View {
     @EnvironmentObject var coreDataService: CoreDataService
     @Binding var isPresented: Bool
-    let viewModel: BudgetViewModel
 
     @State private var selectedCategory: Category?
     @State private var limitAmount: String = ""
@@ -208,7 +246,7 @@ struct AddBudgetView: View {
             currency: "KZT"
         )
 
-        viewModel.addBudget(budget)
+        coreDataService.addBudget(budget)
         isPresented = false
     }
 }
