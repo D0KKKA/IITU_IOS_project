@@ -99,6 +99,7 @@ struct SettingsView: View {
 struct AccountsManagementView: View {
     @EnvironmentObject var coreDataService: CoreDataService
     @Binding var showAddAccount: Bool
+    @State private var defaultAccountId: UUID? = UserDefaults.standard.defaultAccountId
 
     var body: some View {
         VStack(spacing: 0) {
@@ -122,32 +123,46 @@ struct AccountsManagementView: View {
                     .listRowBackground(Color.clear)
                 } else {
                     ForEach(coreDataService.accounts) { account in
-                        HStack {
-                            Image(systemName: account.type.icon)
-                                .font(.title3)
-                                .foregroundColor(.blue)
+                        Button(action: {
+                            defaultAccountId = account.id
+                            UserDefaults.standard.setDefaultAccountId(account.id)
+                        }) {
+                            HStack {
+                                Image(systemName: account.type.icon)
+                                    .font(.title3)
+                                    .foregroundColor(.blue)
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(account.name)
-                                    .fontWeight(.semibold)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(account.name)
+                                        .fontWeight(.semibold)
 
-                                Text(account.type.displayName)
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
+                                    Text(account.type.displayName)
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
 
-                            Spacer()
+                                Spacer()
 
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(String(format: "%.2f", account.balance))")
-                                    .fontWeight(.semibold)
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text("\(String(format: "%.2f", account.balance))")
+                                            .fontWeight(.semibold)
 
-                                Text(account.currency)
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
+                                        Text(account.currency)
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+
+                                    if defaultAccountId == account.id {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.yellow)
+                                            .font(.caption)
+                                    }
+                                }
                             }
                         }
                         .padding(.vertical, 8)
+                        .foregroundColor(.black)
                     }
                 }
             }

@@ -16,6 +16,10 @@ struct AddOperationView: View {
     @State private var showCreateAccount = false
     @State private var isSaving = false
 
+    private var defaultAccountId: UUID? {
+        UserDefaults.standard.defaultAccountId
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -69,10 +73,32 @@ struct AddOperationView: View {
                         HStack {
                             Image(systemName: selected.type.icon)
                             Text(selected.name)
+                            if defaultAccountId == selected.id {
+                                Spacer()
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.yellow)
+                                    .font(.caption)
+                            }
                             Spacer()
                             Text("\(String(format: "%.2f", selected.balance)) \(selected.currency)")
                                 .foregroundColor(.gray)
                                 .font(.caption)
+                        }
+                    } else if let defaultId = defaultAccountId, let defaultAccount = coreDataService.accounts.first(where: { $0.id == defaultId }) {
+                        HStack {
+                            Image(systemName: defaultAccount.type.icon)
+                            Text(defaultAccount.name)
+                            Spacer()
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                                .font(.caption)
+                            Spacer()
+                            Text("\(String(format: "%.2f", defaultAccount.balance)) \(defaultAccount.currency)")
+                                .foregroundColor(.gray)
+                                .font(.caption)
+                        }
+                        .onTapGesture {
+                            selectedAccount = defaultAccount
                         }
                     }
 
@@ -142,6 +168,8 @@ struct AddOperationView: View {
             .onAppear {
                 if coreDataService.accounts.isEmpty {
                     showNoAccountsAlert = true
+                } else if selectedAccount == nil, let defaultId = defaultAccountId {
+                    selectedAccount = coreDataService.accounts.first { $0.id == defaultId }
                 }
             }
         }
