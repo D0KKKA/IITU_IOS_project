@@ -2,10 +2,21 @@ import SwiftUI
 
 struct OperationsView: View {
     @EnvironmentObject var coreDataService: CoreDataService
-    @StateObject private var viewModel: OperationsViewModel
+    @State private var searchText: String = ""
+    @State private var selectedType: OperationType? = nil
 
-    init() {
-        _viewModel = StateObject(wrappedValue: OperationsViewModel(coreDataService: CoreDataService.shared))
+    var filteredOperations: [Operation] {
+        var filtered = coreDataService.operations
+
+        if let type = selectedType {
+            filtered = filtered.filter { $0.type == type }
+        }
+
+        if !searchText.isEmpty {
+            filtered = filtered.filter { $0.description.localizedCaseInsensitiveContains(searchText) }
+        }
+
+        return filtered
     }
 
     var body: some View {
@@ -17,15 +28,11 @@ struct OperationsView: View {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.gray)
 
-                        TextField("Поиск...", text: $viewModel.searchText)
-                            .onChange(of: viewModel.searchText) { _ in
-                                viewModel.filterOperations()
-                            }
+                        TextField("Поиск...", text: $searchText)
 
-                        if !viewModel.searchText.isEmpty {
+                        if !searchText.isEmpty {
                             Button(action: {
-                                viewModel.searchText = ""
-                                viewModel.filterOperations()
+                                searchText = ""
                             }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.gray)
@@ -41,19 +48,18 @@ struct OperationsView: View {
                     HStack(spacing: 8) {
                         ForEach(OperationType.allCases, id: \.self) { type in
                             Button(action: {
-                                if viewModel.selectedType == type {
-                                    viewModel.selectedType = nil
+                                if selectedType == type {
+                                    selectedType = nil
                                 } else {
-                                    viewModel.selectedType = type
+                                    selectedType = type
                                 }
-                                viewModel.filterOperations()
                             }) {
                                 Text(type.displayName)
                                     .font(.caption)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
-                                    .background(viewModel.selectedType == type ? Color.blue : Color(.systemGray6))
-                                    .foregroundColor(viewModel.selectedType == type ? .white : .black)
+                                    .background(selectedType == type ? Color.blue : Color(.systemGray6))
+                                    .foregroundColor(selectedType == type ? .white : .black)
                                     .cornerRadius(8)
                             }
                         }
@@ -65,7 +71,7 @@ struct OperationsView: View {
 
                 // Operations List
                 List {
-                    if viewModel.filteredOperations.isEmpty {
+                    if filteredOperations.isEmpty {
                         VStack(alignment: .center, spacing: 12) {
                             Image(systemName: "list.bullet")
                                 .font(.system(size: 40))
@@ -83,11 +89,11 @@ struct OperationsView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                     } else {
-                        ForEach(viewModel.filteredOperations) { operation in
-                            OperationListItemView(operation: operation, viewModel: viewModel)
+                        ForEach(filteredOperations) { operation in
+                            OperationListItemView(operation: operation)
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
-                                        viewModel.deleteOperation(operation.id)
+                                        coreDataService.deleteOperation(operation.id)
                                     } label: {
                                         Label("Удалить", systemImage: "trash")
                                     }
@@ -106,7 +112,14 @@ struct OperationsView: View {
 struct OperationListItemView: View {
     @EnvironmentObject var coreDataService: CoreDataService
     let operation: Operation
-    let viewModel: OperationsViewModel
+
+    var categoryName: String {
+        coreDataService.categories.first { $0.id == operation.categoryId }?.name ?? "Unknown"
+    }
+
+    var accountName: String {
+        coreDataService.accounts.first { $0.id == operation.accountId }?.name ?? "Unknown"
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -121,7 +134,7 @@ struct OperationListItemView: View {
             .cornerRadius(8)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(viewModel.getCategoryName(operation.categoryId))
+                Text(categoryName)
                     .font(.callout)
                     .fontWeight(.semibold)
 
@@ -144,7 +157,7 @@ struct OperationListItemView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(operation.type == .expense ? .red : .green)
 
-                Text(viewModel.getAccountName(operation.accountId))
+                Text(accountName)
                     .font(.caption)
                     .foregroundColor(.gray)
             }
