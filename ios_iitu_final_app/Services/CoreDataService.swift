@@ -373,6 +373,38 @@ class CoreDataService: NSObject, ObservableObject {
         save()
     }
 
+    func updateGoal(_ goal: Goal) {
+        let request = NSFetchRequest<NSFetchRequestResult>(entityName: "GoalEntity")
+        request.predicate = NSPredicate(format: "id == %@", goal.id.uuidString)
+
+        do {
+            if let result = try viewContext.fetch(request).first as? NSManagedObject {
+                result.setValue(goal.name, forKey: "name")
+                result.setValue(goal.targetAmount, forKey: "targetAmount")
+                result.setValue(goal.currentAmount, forKey: "currentAmount")
+                result.setValue(goal.deadline, forKey: "deadline")
+                result.setValue(goal.currency, forKey: "currency")
+                save()
+            }
+        } catch {
+            print("Update goal error: \(error.localizedDescription)")
+        }
+    }
+
+    func deleteGoal(_ goalId: UUID) {
+        let request = NSFetchRequest<NSFetchRequestResult>(entityName: "GoalEntity")
+        request.predicate = NSPredicate(format: "id == %@", goalId.uuidString)
+
+        do {
+            if let result = try viewContext.fetch(request).first as? NSManagedObject {
+                viewContext.delete(result)
+                save()
+            }
+        } catch {
+            print("Delete goal error: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Default Categories
     private func loadDefaultCategories() {
         // Check if categories already exist

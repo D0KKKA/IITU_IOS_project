@@ -451,6 +451,8 @@ struct AddCategoryView: View {
 struct GoalsView: View {
     @EnvironmentObject var coreDataService: CoreDataService
     @State private var showAddGoal = false
+    @State private var selectedGoal: Goal?
+    @State private var showGoalDetail = false
 
     var body: some View {
         NavigationStack {
@@ -481,44 +483,51 @@ struct GoalsView: View {
                 } else {
                     List {
                         ForEach(coreDataService.goals) { goal in
-                            VStack(spacing: 12) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(goal.name)
-                                            .font(.callout)
-                                            .fontWeight(.semibold)
+                            Button(action: {
+                                selectedGoal = goal
+                                showGoalDetail = true
+                            }) {
+                                VStack(spacing: 12) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(goal.name)
+                                                .font(.callout)
+                                                .fontWeight(.semibold)
 
-                                        Text("Осталось: \(goal.daysRemaining) дн.")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
+                                            Text("Осталось: \(goal.daysRemaining) дн.")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                        }
+
+                                        Spacer()
+
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            Text("\(Int(goal.percentage))%")
+                                                .font(.callout)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(goal.percentage >= 100 ? .green : (goal.percentage >= 80 ? .orange : .blue))
+
+                                            Text("\(String(format: "%.2f", goal.currentAmount)) / \(String(format: "%.2f", goal.targetAmount))")
+                                                .font(.caption2)
+                                                .foregroundColor(.gray)
+                                        }
                                     }
 
-                                    Spacer()
+                                    GeometryReader { geo in
+                                        ZStack(alignment: .leading) {
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(Color(.systemGray6))
 
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        Text("\(Int(goal.percentage))%")
-                                            .font(.callout)
-                                            .fontWeight(.semibold)
-
-                                        Text("\(String(format: "%.2f", goal.currentAmount)) / \(String(format: "%.2f", goal.targetAmount))")
-                                            .font(.caption2)
-                                            .foregroundColor(.gray)
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(goal.percentage >= 100 ? Color.green : (goal.percentage >= 80 ? Color.orange : Color.blue))
+                                                .frame(width: geo.size.width * (goal.percentage / 100))
+                                        }
                                     }
+                                    .frame(height: 8)
                                 }
-
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color(.systemGray6))
-
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color.blue)
-                                            .frame(width: geo.size.width * (goal.percentage / 100))
-                                    }
-                                }
-                                .frame(height: 8)
+                                .padding(.vertical, 8)
                             }
-                            .padding(.vertical, 8)
+                            .foregroundColor(.black)
                         }
                     }
                     .listStyle(.insetGrouped)
@@ -535,6 +544,12 @@ struct GoalsView: View {
             }
             .sheet(isPresented: $showAddGoal) {
                 AddGoalView(isPresented: $showAddGoal)
+            }
+            .sheet(isPresented: $showGoalDetail) {
+                if let goal = selectedGoal {
+                    GoalDetailView(isPresented: $showGoalDetail, goal: goal)
+                        .environmentObject(coreDataService)
+                }
             }
         }
     }
@@ -626,6 +641,322 @@ struct AddGoalView: View {
         )
 
         coreDataService.addGoal(goal)
+        isPresented = false
+    }
+}
+
+struct GoalDetailView: View {
+    @Binding var isPresented: Bool
+    @EnvironmentObject var coreDataService: CoreDataService
+
+    let goal: Goal
+    @State private var currentAmount: String = ""
+    @State private var showAddFunds = false
+    @State private var addAmount: String = ""
+    @State private var showDeleteConfirmation = false
+
+    var progressColor: Color {
+        if goal.percentage >= 100 {
+            return .green
+        } else if goal.percentage >= 80 {
+            return .orange
+        } else {
+            return .blue
+        }
+    }
+
+    var remainingAmount: Double {
+        max(goal.targetAmount - goal.currentAmount, 0)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                // Goal Header
+                VStack(spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(goal.name)
+                                .font(.title2)
+                                .fontWeight(.bold)
+
+                            Text("Осталось: \(goal.daysRemaining) дней")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("\(Int(goal.percentage))%")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(progressColor)
+
+                            if goal.percentage >= 100 {
+                                Text("Завершено!")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            } else {
+                                Text("Осталось: \(String(format: "%.2f", remainingAmount))")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(.systemGray6))
+
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(progressColor)
+                                .frame(width: geo.size.width * (goal.percentage / 100))
+                        }
+                    }
+                    .frame(height: 12)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+
+                // Stats
+                VStack(spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Текущая сумма")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+
+                            Text("\(String(format: "%.2f", goal.currentAmount)) \(goal.currency)")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("Целевая сумма")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+
+                            Text("\(String(format: "%.2f", goal.targetAmount)) \(goal.currency)")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Дедлайн")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+
+                            Text(goal.deadline.formatted(date: .abbreviated, time: .omitted))
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                        }
+
+                        Spacer()
+
+                        if let account = coreDataService.accounts.first(where: { $0.id == goal.accountId }) {
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("Счет")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+
+                                HStack(spacing: 4) {
+                                    Image(systemName: account.type.icon)
+                                    Text(account.name)
+                                }
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+
+                Spacer()
+
+                // Action Buttons
+                VStack(spacing: 12) {
+                    if goal.percentage < 100 {
+                        Button(action: { showAddFunds = true }) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Пополнить цель")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .foregroundColor(.white)
+                            .background(Color.green)
+                            .cornerRadius(8)
+                        }
+                    }
+
+                    Button(action: { showDeleteConfirmation = true }) {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                            Text("Удалить цель")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .foregroundColor(.white)
+                        .background(Color.red)
+                        .cornerRadius(8)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Детали цели")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Закрыть") {
+                        isPresented = false
+                    }
+                }
+            }
+            .sheet(isPresented: $showAddFunds) {
+                AddFundsToGoalView(isPresented: $showAddFunds, goal: goal)
+                    .environmentObject(coreDataService)
+            }
+            .alert("Удалить цель", isPresented: $showDeleteConfirmation) {
+                Button("Удалить", role: .destructive) {
+                    coreDataService.deleteGoal(goal.id)
+                    isPresented = false
+                }
+                Button("Отмена", role: .cancel) { }
+            } message: {
+                Text("Эта цель будет удалена. Это действие невозможно отменить.")
+            }
+        }
+    }
+}
+
+struct AddFundsToGoalView: View {
+    @Binding var isPresented: Bool
+    @EnvironmentObject var coreDataService: CoreDataService
+
+    let goal: Goal
+    @State private var addAmount: String = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
+
+    var remainingToGoal: Double {
+        max(goal.targetAmount - goal.currentAmount, 0)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Информация о цели")) {
+                    HStack {
+                        Text("Текущая сумма")
+                        Spacer()
+                        Text("\(String(format: "%.2f", goal.currentAmount)) \(goal.currency)")
+                            .fontWeight(.semibold)
+                    }
+
+                    HStack {
+                        Text("Требуется еще")
+                        Spacer()
+                        Text("\(String(format: "%.2f", remainingToGoal)) \(goal.currency)")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                    }
+                }
+
+                Section(header: Text("Добавить средства")) {
+                    HStack {
+                        TextField("Сумма", text: $addAmount)
+                            .keyboardType(.decimalPad)
+
+                        Text(goal.currency)
+                            .foregroundColor(.gray)
+                    }
+                }
+
+                Section {
+                    HStack {
+                        ForEach([Double(100), Double(500), Double(1000), Double(5000)], id: \.self) { amount in
+                            if amount <= remainingToGoal {
+                                Button(action: { addAmount = String(Int(amount)) }) {
+                                    Text("+\(Int(amount))")
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.blue)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(6)
+                                }
+                            }
+                        }
+                        Spacer()
+                    }
+                }
+
+                Section {
+                    Button(action: addFunds) {
+                        HStack {
+                            Spacer()
+                            Text("Добавить")
+                                .fontWeight(.semibold)
+                            Spacer()
+                        }
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .background(Color.green)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+            .navigationTitle("Пополнить цель")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Отмена") {
+                        isPresented = false
+                    }
+                }
+            }
+            .alert("Ошибка", isPresented: $showError) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
+            }
+        }
+    }
+
+    private func addFunds() {
+        guard let amount = Double(addAmount), amount > 0 else {
+            errorMessage = "Введите корректную сумму"
+            showError = true
+            return
+        }
+
+        let newAmount = min(goal.currentAmount + amount, goal.targetAmount)
+
+        let updatedGoal = Goal(
+            id: goal.id,
+            name: goal.name,
+            targetAmount: goal.targetAmount,
+            currentAmount: newAmount,
+            deadline: goal.deadline,
+            currency: goal.currency,
+            accountId: goal.accountId
+        )
+
+        coreDataService.updateGoal(updatedGoal)
         isPresented = false
     }
 }
