@@ -95,7 +95,7 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.secondary.opacity(0.2))
                     .cornerRadius(12)
                     .padding(.horizontal)
 

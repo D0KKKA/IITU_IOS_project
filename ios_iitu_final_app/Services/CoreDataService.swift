@@ -445,4 +445,30 @@ class CoreDataService: NSObject, ObservableObject {
             addCategory(category)
         }
     }
+
+    // MARK: - Reset All Data
+    func resetAllData() {
+        let entities = ["AccountEntity", "OperationEntity", "CategoryEntity", "BudgetEntity", "GoalEntity"]
+
+        for entityName in entities {
+            let request = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
+
+            do {
+                let results = try viewContext.fetch(request) as? [NSManagedObject] ?? []
+                for object in results {
+                    viewContext.delete(object)
+                }
+            } catch {
+                print("Error deleting \(entityName): \(error.localizedDescription)")
+            }
+        }
+
+        do {
+            try viewContext.save()
+            loadDefaultCategories()
+            loadAllData()
+        } catch {
+            print("Error saving after reset: \(error.localizedDescription)")
+        }
+    }
 }

@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var showAccounts = false
     @State private var showAddAccount = false
+    @State private var showResetConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -63,12 +64,51 @@ struct SettingsView: View {
 
                 // Security Section
                 Section(header: Text("Безопасность")) {
-                    Button(action: {
-                        authManager.authenticate()
-                    }) {
+                    if authManager.isBiometricAvailable {
+                        HStack {
+                            Image(systemName: authManager.biometricType == .faceID ? "faceid" : "touchid")
+                                .foregroundColor(.blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(authManager.biometricType == .faceID ? "Face ID" : "Touch ID")
+                                    .fontWeight(.semibold)
+                                Text("Включено")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { authManager.keychain.isBiometricEnabled() },
+                                set: { newValue in
+                                    if newValue {
+                                        authManager.setupBiometric()
+                                    } else {
+                                        authManager.disableBiometric()
+                                    }
+                                }
+                            ))
+                        }
+
+                        if let error = authManager.authError {
+                            HStack {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundColor(.red)
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } else {
                         HStack {
                             Image(systemName: "lock")
-                            Text("Разблокировать по биометрии")
+                                .foregroundColor(.gray)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Биометрия")
+                                    .fontWeight(.semibold)
+                                Text("Недоступна на этом устройстве")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
                         }
                     }
                 }
@@ -89,10 +129,35 @@ struct SettingsView: View {
                             .foregroundColor(.gray)
                     }
                 }
+
+                // Danger Zone Section
+                Section(header: Text("Опасные действия")) {
+                    Button(action: { showResetConfirmation = true }) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            Text("Сбросить все данные")
+                                .foregroundColor(.red)
+                            Spacer()
+                        }
+                    }
+                }
             }
             .navigationTitle("Настройки")
             .navigationBarTitleDisplayMode(.inline)
+            .alert("Сбросить все данные?", isPresented: $showResetConfirmation) {
+                Button("Сбросить", role: .destructive) {
+                    resetAllData()
+                }
+                Button("Отмена", role: .cancel) { }
+            } message: {
+                Text("Все ваши данные (счета, транзакции, категории, цели) будут удалены. Это действие невозможно отменить!")
+            }
         }
+    }
+
+    private func resetAllData() {
+        coreDataService.resetAllData()
     }
 }
 
@@ -1037,39 +1102,78 @@ struct AnalyticsView: View {
 
 struct AuthenticationView: View {
     @EnvironmentObject var authManager: AuthenticationManager
-    @State private var pin: String = ""
+    @State private var attemptCount = 0
 
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 50))
-                .foregroundColor(.blue)
+            VStack(spacing: 12) {
+                Image(systemName: authManager.biometricType == .faceID ? "faceid" : (authManager.biometricType == .touchID ? "touchid" : "lock.fill"))
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
 
-            Text("FinanceFlow")
-                .font(.title)
-                .fontWeight(.bold)
+                Text("FinanceFlow")
+                    .font(.title)
+                    .fontWeight(.bold)
 
-            Text("Защита данных")
-                .foregroundColor(.gray)
+                Text("Защита данных")
+                    .foregroundColor(.gray)
+            }
+            .padding()
 
-            Button(action: {
-                authManager.authenticate()
-            }) {
-                HStack {
-                    Image(systemName: "faceid")
-                    Text("Разблокировать по FaceID")
+            if authManager.isBiometricAvailable {
+                VStack(spacing: 12) {
+                    Button(action: {
+                        authManager.authenticate()
+                    }) {
+                        HStack {
+                            Image(systemName: authManager.biometricType == .faceID ? "faceid" : "touchid")
+                            Text(authManager.biometricType == .faceID ? "Разблокировать Face ID" : "Разблокировать Touch ID")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .foregroundColor(.white)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                    }
+
+                    if let error = authManager.authError {
+                        HStack {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.red)
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(6)
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .foregroundColor(.white)
-                .background(Color.blue)
-                .cornerRadius(8)
+                .padding()
+            } else {
+                VStack(spacing: 12) {
+                    Text("Биометрия недоступна")
+                        .font(.headline)
+                        .foregroundColor(.red)
+
+                    Text("Это приложение требует Face ID или Touch ID для защиты ваших данных")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
             }
 
             Spacer()
         }
         .padding()
         .frame(maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            if authManager.isBiometricAvailable && authManager.keychain.isBiometricEnabled() {
+                authManager.authenticate()
+            }
+        }
     }
 }
 

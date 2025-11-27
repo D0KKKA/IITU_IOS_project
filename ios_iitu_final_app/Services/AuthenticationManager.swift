@@ -7,8 +7,10 @@ class AuthenticationManager: NSObject, ObservableObject {
 
     @Published var isAuthenticated = false
     @Published var authError: String?
+    @Published var biometricType: BiometricType = .none
+    @Published var isBiometricAvailable = false
 
-    private let keychain = KeychainManager()
+    let keychain = KeychainManager()
     private let defaults = UserDefaults.standard
 
     override init() {
@@ -17,114 +19,104 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
 
     func checkAuthenticationStatus() {
-        // Check if PIN is set
-        if keychain.retrievePIN() != nil {
-            isAuthenticated = checkBiometrics() ?? false
+        // Check if biometric or PIN is enabled
+        if keychain.isBiometricEnabled() {
+            // Check biometric availability
+            updateBiometricStatus()
+            isAuthenticated = false
         } else {
             isAuthenticated = true // First launch - no auth required
         }
     }
 
-    func setupPIN(_ pin: String) {
-        keychain.savePIN(pin)
-        isAuthenticated = true
+    func setupBiometric() {
+        keychain.enableBiometric()
+        updateBiometricStatus()
+    }
+
+    private func updateBiometricStatus() {
+        let context = LAContext()
+        var error: NSError?
+
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+            isBiometricAvailable = true
+            biometricType = context.biometryType == .faceID ? .faceID : .touchID
+        } else {
+            isBiometricAvailable = false
+            biometricType = .none
+        }
     }
 
     func authenticate() {
         let context = LAContext()
+        context.localizedFallbackTitle = "Использовать PIN"
         var error: NSError?
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            // Fallback to PIN
-            authenticateWithPIN()
+            authError = "Биометрия недоступна"
             return
         }
 
-        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "Разблокируйте FinanceFlow") { [weak self] success, error in
+        let reason = biometricType == .faceID ? "Разблокируйте приложение через Face ID" : "Разблокируйте приложение через Touch ID"
+
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { [weak self] success, error in
             guard let self = self else { return }
             DispatchQueue.main.async {
                 if success {
                     self.isAuthenticated = true
                     self.authError = nil
                 } else {
-                    self.authError = error?.localizedDescription ?? "Ошибка аутентификации"
+                    if let error = error as? LAError {
+                        switch error.code {
+                        case .userCancel:
+                            self.authError = "Аутентификация отменена"
+                        case .userFallback:
+                            self.authError = "Используйте PIN"
+                        case .biometryNotEnrolled:
+                            self.authError = "Биометрия не настроена"
+                        case .biometryNotAvailable:
+                            self.authError = "Биометрия недоступна"
+                        default:
+                            self.authError = error.localizedDescription
+                        }
+                    }
                 }
             }
         }
     }
 
-    private func checkBiometrics() -> Bool? {
-        let context = LAContext()
-        var error: NSError?
-
-        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
-            return true
-        }
-
-        return false
-    }
-
-    private func authenticateWithPIN() {
-        // This will be handled in UI
-        isAuthenticated = false
+    func disableBiometric() {
+        keychain.disableBiometric()
+        updateBiometricStatus()
+        isAuthenticated = true
     }
 
     func logout() {
         isAuthenticated = false
     }
+}
 
-    func resetAuthentication() {
-        keychain.deletePIN()
-        isAuthenticated = false
-    }
+enum BiometricType {
+    case faceID
+    case touchID
+    case none
 }
 
 // MARK: - Keychain Manager
 class KeychainManager {
     private let service = "com.financeflow.app"
-    private let account = "authentication"
+    private let biometricKey = "biometric_enabled"
+    private let defaults = UserDefaults.standard
 
-    func savePIN(_ pin: String) {
-        guard let data = pin.data(using: .utf8) else {
-            print("Failed to encode PIN")
-            return
-        }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-        ]
-
-        SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
+    func enableBiometric() {
+        defaults.set(true, forKey: biometricKey)
     }
 
-    func retrievePIN() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-        ]
-
-        var result: AnyObject?
-        SecItemCopyMatching(query as CFDictionary, &result)
-
-        if let data = result as? Data {
-            return String(data: data, encoding: .utf8)
-        }
-
-        return nil
+    func disableBiometric() {
+        defaults.set(false, forKey: biometricKey)
     }
 
-    func deletePIN() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-
-        SecItemDelete(query as CFDictionary)
+    func isBiometricEnabled() -> Bool {
+        return defaults.bool(forKey: biometricKey)
     }
 }

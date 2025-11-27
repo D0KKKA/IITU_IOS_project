@@ -41,7 +41,7 @@ struct OperationsView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(Color(.systemGray6))
+                    .background(Color.secondary.opacity(0.2))
                     .cornerRadius(8)
 
                     // Type filters
@@ -130,7 +130,7 @@ struct OperationListItemView: View {
                 }
             }
             .frame(width: 40, height: 40)
-            .background(Color(.systemGray6))
+            .background(Color.secondary.opacity(0.2))
             .cornerRadius(8)
 
             VStack(alignment: .leading, spacing: 4) {
